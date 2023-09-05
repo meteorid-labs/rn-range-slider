@@ -25,6 +25,23 @@ import {
   useSelectedRail,
 } from './hooks';
 import {clamp, getValueForPosition, isLowCloser} from './helpers';
+import { Text } from 'react-native';
+import { ms } from 'react-native-size-matters';
+
+const numberFormat = ({num, opt}) => {
+  const sign = Math.sign(Number(num)) < 0 ? '-' : ''; // Handle negative numbers
+  const integerPart = Math.abs(Number(num)).toFixed(0);
+
+  const regex = /(\d)(?=(\d{3})+$)/g;
+  const formattedIntegerPart = integerPart.replace(regex, '$1.');
+  const isCurrency = opt?.style === 'currency';
+
+  return `${sign}${isCurrency ? 'Rp' : ''} ${formattedIntegerPart}`;
+};
+
+const roundPrice = (value: number) => {
+  return Math.round(value / 10000) * 10000;
+};
 
 const trueFunc = () => true;
 const falseFunc = () => false;
@@ -32,6 +49,8 @@ const falseFunc = () => false;
 export interface SliderProps extends ViewProps {
   min: number;
   max: number;
+  lowInit: number;
+  highInit: number;
   minRange?: number;
   step: number;
   renderThumb: (name: 'high' | 'low') => ReactNode;
@@ -69,11 +88,13 @@ const Slider: React.FC<SliderProps> = ({
   renderNotch,
   renderRail,
   renderRailSelected,
+  lowInit,
+  highInit,
   ...restProps
 }) => {
   const {inPropsRef, inPropsRefPrev, setLow, setHigh} = useLowHigh(
-    lowProp,
-    disableRange ? max : highProp,
+    lowInit,
+    disableRange ? max : highInit,
     min,
     max,
     step,
@@ -85,6 +106,8 @@ const Slider: React.FC<SliderProps> = ({
   const {current: highThumbX} = highThumbXRef;
 
   const gestureStateRef = useRef({isLow: true, lastValue: 0, lastPosition: 0});
+  const valueLow = useRef(lowInit);
+  const valueHigh = useRef(highInit);
   const [isPressed, setPressed] = useState(false);
 
   const containerWidthRef = useRef(0);
@@ -251,15 +274,19 @@ const Slider: React.FC<SliderProps> = ({
             const absolutePosition =
               ((value - min) / (max - min)) * availableSpace;
             gestureStateRef.current.lastValue = value;
+            if (isLow) {
+              valueLow.current = value;
+            } else {
+              valueHigh.current = value;
+            }
+            valueHigh.current = isLow ? valueHigh.current :  value ;
             gestureStateRef.current.lastPosition =
               absolutePosition + thumbWidth / 2;
             (isLow ? lowThumbX : highThumbX).setValue(absolutePosition);
-            onValueChanged?.(isLow ? value : low, isLow ? high : value, true);
+            onValueChanged?.(isLow ? value : valueLow.current, isLow ? valueHigh.current : value, true);
             (isLow ? setLow : setHigh)(value);
-            labelUpdate &&
-            labelUpdate(gestureStateRef.current.lastPosition, value);
-            notchUpdate &&
-            notchUpdate(gestureStateRef.current.lastPosition, value);
+            labelUpdate && labelUpdate(gestureStateRef.current.lastPosition, value);
+            notchUpdate && notchUpdate(gestureStateRef.current.lastPosition, value);
             updateSelectedRail();
           };
           handlePositionChange(downX);
@@ -297,6 +324,14 @@ const Slider: React.FC<SliderProps> = ({
 
   return (
     <View {...restProps}>
+      <View style={{flexDirection: 'row', justifyContent:'space-between'}}>
+        <Text style={{fontSize: ms(12)}}>Minimum</Text>
+        <Text style={{fontSize: ms(12)}}>Maksimum</Text>
+      </View>
+      <View style={{flexDirection: 'row', justifyContent:'space-between'}}>
+        <Text style={{fontSize: ms(12), fontWeight: 'bold'}}>{numberFormat({num: roundPrice(valueLow.current), opt: {style: 'currency'}})}</Text>
+        <Text style={{fontSize: ms(12), fontWeight: 'bold'}}>{numberFormat({num: roundPrice(valueHigh.current), opt: {style: 'currency'}})}</Text>
+      </View>
       <View {...labelContainerProps}>
         {labelView}
         {notchView}
